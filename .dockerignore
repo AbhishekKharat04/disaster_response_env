@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.git
+.env
+outputs/
+*.log
+.pytest_cache
+baseline_agent.py
+README.md
+pyproject.toml
+openenv.yaml
+client.py

@@ -1,0 +1,161 @@
+# 🚀 DEPLOYMENT GUIDE — Step by Step
+# (For complete beginners — follow exactly in order)
+
+===================================================================
+STEP 0 — WHAT YOU NEED
+===================================================================
+
+Before starting, you need:
+1. A computer with Python 3.10+ installed
+2. A Hugging Face account (free) — create one at: https://huggingface.co/join
+3. An internet connection
+4. About 30-45 minutes
+
+===================================================================
+STEP 1 — SET UP YOUR COMPUTER
+===================================================================
+
+Open your terminal (search "Terminal" on Mac/Linux, "Command Prompt" or
+"PowerShell" on Windows) and run these commands one by one:
+
+# Check Python version (must be 3.10+)
+python --version
+
+# Install required tools
+pip install openenv-core huggingface_hub
+
+# Login to Hugging Face (it will ask for your token)
+# Get your token at: https://huggingface.co/settings/tokens
+huggingface-cli login
+
+===================================================================
+STEP 2 — CREATE YOUR HUGGING FACE SPACE
+===================================================================
+
+Option A — Using the website (easiest):
+  1. Go to https://huggingface.co/new-space
+  2. Name it: disaster_response_env
+  3. Under "Space SDK" — select: Docker
+  4. Hardware: CPU basic (free)
+  5. Visibility: Public (required for submission)
+  6. Click "Create Space"
+  7. Copy the git remote URL shown — it looks like:
+     https://huggingface.co/spaces/YOUR_USERNAME/disaster_response_env
+
+Option B — Using CLI:
+  huggingface-cli repo create disaster_response_env --type space --space_sdk docker
+
+===================================================================
+STEP 3 — PUSH YOUR CODE TO THE SPACE
+===================================================================
+
+# Navigate to your project folder
+cd disaster_response_env
+
+# Initialize git (if not already done)
+git init
+git add .
+git commit -m "Initial disaster response environment"
+
+# Add the HF Space as a remote
+git remote add space https://huggingface.co/spaces/YOUR_USERNAME/disaster_response_env
+
+# Push! (replace YOUR_USERNAME)
+git push space main
+
+===================================================================
+STEP 4 — CONFIGURE SPACE SECRETS (Optional but recommended)
+===================================================================
+
+To enable the LLM grader (better scores, richer feedback):
+
+1. Go to your Space settings on Hugging Face
+2. Click "Repository secrets"
+3. Add: OPENAI_API_KEY → your OpenAI key (sk-...)
+4. Add: TASK_LEVEL → 1 (you can deploy separate spaces for 2 and 3)
+
+Without OPENAI_API_KEY the environment still works with rule-based grading.
+
+===================================================================
+STEP 5 — VERIFY YOUR DEPLOYMENT
+===================================================================
+
+After pushing, Hugging Face will build the Docker container (2-5 minutes).
+
+Watch the build logs in the "Logs" tab of your Space.
+When it says "Application is running on port 7860" — you're live!
+
+Test it:
+  curl https://YOUR_USERNAME-disaster-response-env.hf.space/health
+
+You should see: {"status": "ok", "env": "disaster_response_env"}
+
+Or visit the web UI:
+  https://YOUR_USERNAME-disaster-response-env.hf.space/web
+
+===================================================================
+STEP 6 — RUN THE BASELINE AGENT
+===================================================================
+
+# Install agent dependencies
+pip install openai
+
+# Run Task 1 (Fire — easy)
+export OPENAI_API_KEY=sk-...   # Mac/Linux
+set OPENAI_API_KEY=sk-...      # Windows
+
+python baseline_agent.py \
+  --base_url https://YOUR_USERNAME-disaster-response-env.hf.space \
+  --task_level 1
+
+# Run all 3 tasks (for submission evidence)
+python baseline_agent.py \
+  --base_url https://YOUR_USERNAME-disaster-response-env.hf.space \
+  --task_level 0
+
+===================================================================
+STEP 7 — SUBMIT TO HACKATHON
+===================================================================
+
+For your hackathon submission, you'll need:
+1. ✅ HF Space URL (running, public)
+2. ✅ Screenshot of the web UI at /web
+3. ✅ Screenshot of baseline agent output showing scores
+4. ✅ README.md (already in your repo)
+5. ✅ openenv.yaml (already in your repo)
+
+Submission checklist from the problem statement:
+  □ step() / reset() / state() working → ✅ (via OpenEnv create_app)
+  □ OpenEnv TypedModel (Action/Observation) → ✅ (models.py)
+  □ Minimum 3 tasks → ✅ (Tasks 1, 2, 3)
+  □ Meaningful reward function → ✅ (hybrid grader, partial credit)
+  □ Baseline inference script → ✅ (baseline_agent.py)
+  □ Docker + HF Spaces → ✅ (Dockerfile + openenv.yaml)
+  □ Documentation → ✅ (README.md + openenv.yaml)
+
+===================================================================
+TROUBLESHOOTING
+===================================================================
+
+"Module not found: openenv" during build?
+  → Check server/requirements.txt has: openenv-core>=0.2.0
+
+Space is stuck "Building"?
+  → Check Logs tab for errors. Common fix: Docker base image pull timeout.
+  → Wait 2 min and rebuild.
+
+"Connection refused" when running agent?
+  → Your Space URL has dashes not underscores:
+    https://YOUR_USERNAME-disaster-response-env.hf.space
+    (NOT disaster_response_env)
+
+Agent gets score 0?
+  → Make sure response_plan is >50 words and rationale is >30 words.
+  → The grader rewards detailed reasoning!
+
+===================================================================
+NEED HELP?
+===================================================================
+
+Ask me (Claude) anything! I'll help you debug every step.
+Just paste the error message and I'll fix it instantly.

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "disaster-response-env"
+version = "0.1.0"
+description = "Disaster Response Coordination Environment — an OpenEnv-compatible RL training environment"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+dependencies = [
+    "openenv-core>=0.2.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+server = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+agent = [
+    "openai>=1.0.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.25",
+]
+
+[project.scripts]
+disaster-env-server = "disaster_response_env.server.app:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["disaster_response_env*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

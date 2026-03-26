@@ -1,0 +1,77 @@
+name: disaster_response_env
+version: 0.1.0
+description: >
+  Disaster Response Coordination Environment.
+  An AI agent acts as an Emergency Response Commander managing real-world
+  disaster scenarios — fire, earthquake, and hurricane — across three
+  progressively harder tasks. Agents must allocate scarce resources,
+  triage affected areas, and produce clear command briefings.
+  Evaluated by a hybrid rule-based + LLM grader (score 0–10).
+
+author: Solo Warrior
+license: MIT
+
+tasks:
+  - id: task_1
+    name: Apartment Building Fire
+    level: easy
+    max_steps: 1
+    description: >
+      Single building fire. Allocate 4 resource types across 3 areas.
+      One step, maximize casualties prevented.
+
+  - id: task_2
+    name: Urban Earthquake — 4 Districts
+    level: medium
+    max_steps: 3
+    description: >
+      M6.8 earthquake. Four districts, evolving situation over 3 steps.
+      Agent must adapt to new information each step.
+
+  - id: task_3
+    name: Category 5 Hurricane — City-Scale Response
+    level: hard
+    max_steps: 5
+    description: >
+      Full city disaster. Six zones, 8 resource types, 5 steps.
+      Second storm band, hazmat, hospital evacuation, infrastructure repair.
+      Every decision has downstream consequences.
+
+environment:
+  action_space:
+    response_plan: string          # Narrative strategy (>50 words recommended)
+    resource_allocations: dict     # Resource name → integer count
+    priority_areas: list[string]   # Ordered priority list
+    rationale: string              # Triage justification (>30 words recommended)
+
+  observation_space:
+    situation_report: string
+    available_resources: dict
+    affected_areas: list[object]
+    time_step: int
+    max_steps: int
+    done: bool
+    reward: float                  # Normalised step score [0, 1]
+    step_score: float              # Raw score [0, 10]
+    cumulative_score: float
+    final_score: float|null
+    feedback: string
+    casualties_prevented: int
+    task_level: int
+    task_name: string
+    task_description: string
+
+  reward_range: [0.0, 1.0]
+  max_episode_steps: 5            # Task 3 max
+
+docker:
+  dockerfile: server/Dockerfile
+  port: 7860
+  env_vars:
+    TASK_LEVEL: "1"               # Override per deployment: 1, 2, or 3
+    ENABLE_WEB_INTERFACE: "true"
+    OPENAI_API_KEY: ""            # Optional: enables LLM grader
+
+huggingface:
+  space_sdk: docker
+  hardware: cpu-basic
