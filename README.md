@@ -1,3 +1,12 @@
+---
+title: Disaster Response Environment
+emoji: 🚨
+colorFrom: red
+colorTo: orange
+sdk: docker
+pinned: true
+---
+
 # 🚨 Disaster Response Coordination Environment
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-blue)](https://github.com/meta-pytorch/OpenEnv)
