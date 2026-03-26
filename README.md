@@ -2,7 +2,7 @@
 title: Disaster Response Environment
 emoji: 🚨
 colorFrom: red
-colorTo: orange
+colorTo: yellow
 sdk: docker
 pinned: true
 ---
