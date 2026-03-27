@@ -5,6 +5,8 @@ colorFrom: red
 colorTo: yellow
 sdk: docker
 pinned: true
+tags:
+  - openenv
 ---
 
 # 🚨 Disaster Response Coordination Environment
