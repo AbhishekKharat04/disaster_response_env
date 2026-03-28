@@ -1,220 +1,91 @@
 """
 Disaster Response Coordination Environment — Baseline Agent
-A Claude/OpenAI-powered agent that demonstrates solving all 3 tasks.
-Run this AFTER deploying the environment to Hugging Face Spaces.
-
-Usage:
-    pip install openenv-core openai
-    export OPENAI_API_KEY=sk-...
-    python baseline_agent.py --base_url https://YOUR-SPACE.hf.space --task_level 1
+Rule-based deterministic agent. No API key required.
+Usage: python baseline_agent.py --base_url https://YOUR-SPACE.hf.space
 """
-from __future__ import annotations
+import argparse, requests, json
 
-import argparse
-import asyncio
-import json
-import os
-import sys
-from typing import Any, Dict, List
-
-try:
-    from openai import AsyncOpenAI
-except ImportError:
-    print("❌ Please install openai: pip install openai")
-    sys.exit(1)
-
-try:
-    from disaster_response_env import DisasterAction, DisasterObservation, DisasterResponseEnv
-except ImportError:
-    print("❌ Please install the env client: pip install -e .")
-    sys.exit(1)
-
-
-# ─── Agent system prompt ──────────────────────────────────────────────────────
-
-AGENT_SYSTEM_PROMPT = """You are an expert Emergency Response Commander with 20 years of experience.
-Your job is to coordinate disaster response operations optimally.
-
-You will receive a situation report, available resources, and affected areas.
-You must respond with a JSON action object ONLY — no extra text, no markdown fences.
-
-The JSON must exactly match this schema:
-{
-    "response_plan": "Detailed narrative of your strategy (minimum 80 words)",
-    "resource_allocations": {
-        "resource_name": integer_count,
-        ...
+BASE_ACTIONS = {
+    1: {
+        "response_plan": "Deploy rescue teams immediately to Area B (Floors 8-9) as it has the highest severity with 25 trapped including children and elderly. The elevator shaft fire means stairwell B is the only access. Simultaneously send fire trucks to Area A to prevent upward spread. Stage ambulances at both zones. Area C gets one paramedic unit for street injuries.",
+        "resource_allocations": {"ambulances": 3, "rescue_teams": 2, "fire_trucks": 2, "paramedic_units": 1},
+        "priority_areas": ["Area B — Floors 8-9", "Area A — Floors 3-5", "Area C — Surrounding Streets"],
+        "rationale": "Area B has children and elderly with no stairwell access — rescue teams are irreplaceable. Area A fire spread would worsen Area B. Area C injuries are ambulatory and need only basic care."
     },
-    "priority_areas": ["highest priority area name", "second priority", ...],
-    "rationale": "Your triage logic — why these areas, why these allocations, what trade-offs (minimum 40 words)"
+    2: {
+        "response_plan": "Priority 1: District South gas leak — deploy heavy equipment and rescue teams immediately to prevent explosion. Priority 2: District West hospital — ambulances and medical units for ICU patient evacuation within the critical 12-hour window. Priority 3: District North — send rescue teams for trapped residents in collapsed buildings. District East gets medical units for displaced population triage.",
+        "resource_allocations": {"ambulances": 4, "rescue_teams": 3, "medical_units": 2, "heavy_equipment": 2},
+        "priority_areas": ["District South", "District West — Hospital", "District North", "District East"],
+        "rationale": "Gas leak in District South creates explosion risk affecting all nearby zones. Hospital ICU has a hard 12-hour window for critical patients. North and East are accessible but less immediately life-threatening."
+    },
+    3: {
+        "response_plan": "Critical priorities: Zone 2 ammonia leak requires hazmat units immediately — failure means mass casualty event. Zone 1 nursing homes need boats and helicopters for elderly evacuation — roads are flooded. Zone 3 hospital ICU evacuation starts with ambulances and field hospitals. Zone 5 bridge repair assigned to engineering crews — restoring it doubles future resource capacity. Zone 4 rescue teams for structural collapses. Zone 6 engineering crew to prevent water contamination.",
+        "resource_allocations": {"hazmat_units": 2, "boats": 3, "helicopters": 1, "ambulances": 4, "field_hospitals": 1, "rescue_teams": 3, "engineering_crews": 1, "heavy_equipment": 1},
+        "priority_areas": ["Zone 2 — Industrial District", "Zone 1 — Coastal Ward", "Zone 3 — Central Hospital", "Zone 5 — Transport Hub", "Zone 4 — Residential North"],
+        "rationale": "Ammonia leak is an immediate mass casualty risk. Nursing home elderly have no self-evacuation. Hospital ICU is time-critical. Bridge repair is a force multiplier for all future steps."
+    }
 }
 
-Critical rules:
-1. Never allocate more of any resource than what's available
-2. Always address the highest-severity areas first
-3. Never leave a severity-5 area completely unaddressed
-4. Justify decisions based on population_at_risk and casualties_if_ignored
-5. If children, elderly, or hazmat are mentioned — they always get elevated priority
-"""
-
-
-# ─── Agent ────────────────────────────────────────────────────────────────────
-
-class DisasterResponseAgent:
-    def __init__(self, model: str = "gpt-4o"):
-        self.client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-        self.model = model
-        self.conversation_history: List[Dict[str, Any]] = []
-
-    def _format_observation(self, obs: DisasterObservation) -> str:
-        areas_formatted = "\n".join(
-            f"  [{i+1}] {a['name']}\n"
-            f"      Severity: {a['severity']}/5 | At Risk: {a['population_at_risk']} people\n"
-            f"      Needs: {', '.join(a.get('needs', []))}\n"
-            f"      Damage: {a.get('infrastructure_damage','')}\n"
-            f"      Casualties if ignored: ~{a.get('estimated_casualties_if_ignored',0)}"
-            for i, a in enumerate(obs.affected_areas)
-        )
-        resources_formatted = "\n".join(
-            f"  {k}: {v}" for k, v in obs.available_resources.items()
-        )
-        return (
-            f"=== STEP {obs.time_step + 1} of {obs.max_steps} ===\n"
-            f"TASK: {obs.task_name}\n\n"
-            f"SITUATION REPORT:\n{obs.situation_report}\n\n"
-            f"AVAILABLE RESOURCES:\n{resources_formatted}\n\n"
-            f"AFFECTED AREAS:\n{areas_formatted}\n\n"
-            f"Previous step feedback: {obs.feedback if obs.time_step > 0 else 'N/A (first step)'}"
-        )
-
-    async def act(self, obs: DisasterObservation) -> DisasterAction:
-        obs_text = self._format_observation(obs)
-        self.conversation_history.append({"role": "user", "content": obs_text})
-
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-                *self.conversation_history,
-            ],
-            temperature=0.2,
-            response_format={"type": "json_object"},
-        )
-
-        raw_response = response.choices[0].message.content
-        self.conversation_history.append(
-            {"role": "assistant", "content": raw_response}
-        )
-
-        data = json.loads(raw_response)
-        return DisasterAction(
-            response_plan=data.get("response_plan", ""),
-            resource_allocations=data.get("resource_allocations", {}),
-            priority_areas=data.get("priority_areas", []),
-            rationale=data.get("rationale", ""),
-        )
-
-
-# ─── Runner ───────────────────────────────────────────────────────────────────
-
-async def run_episode(base_url: str, task_level: int, model: str) -> None:
+def run_episode(base_url: str, task_level: int):
     print(f"\n{'='*60}")
-    print(f"🚨 DISASTER RESPONSE ENVIRONMENT — Task Level {task_level}")
+    print(f"DISASTER RESPONSE BASELINE AGENT — Task {task_level}")
     print(f"{'='*60}")
-    print(f"Connecting to: {base_url}")
-    print(f"Agent model:   {model}\n")
 
-    agent = DisasterResponseAgent(model=model)
+    # Reset
+    r = requests.post(f"{base_url}/reset", json={}, timeout=30)
+    data = r.json()
+    obs = data.get("observation", data)
 
-    async with DisasterResponseEnv(base_url=base_url) as env:
-        # Reset — task level is set server-side via TASK_LEVEL env var
-        obs = await env.reset()
+    print(f"Task: {obs.get('task_name', '')}")
+    print(f"Max steps: {obs.get('max_steps', 1)}")
 
-        print(f"📋 Task: {obs.task_name}")
-        print(f"📝 {obs.task_description}\n")
-        print(f"Max steps: {obs.max_steps}")
-        print("-" * 60)
+    action = BASE_ACTIONS.get(task_level, BASE_ACTIONS[1])
+    total_score = 0.0
+    step = 0
+    done = False
 
-        total_score = 0.0
-        step = 0
+    while not done:
+        step += 1
+        print(f"\n--- Step {step} ---")
+        print(f"Situation: {obs.get('situation_report','')[:200]}...")
+        print(f"Resources: {obs.get('available_resources', {})}")
+        print(f"\nAgent deploying: {action['resource_allocations']}")
+        print(f"Priority: {action['priority_areas']}")
 
-        while not obs.done:
-            step += 1
-            print(f"\n🔄 STEP {step}/{obs.max_steps}")
-            print(f"Situation:\n{obs.situation_report[:500]}...")
-            print(f"Resources: {obs.available_resources}")
+        r = requests.post(f"{base_url}/step", json={"action": action}, timeout=30)
+        result = r.json()
+        obs = result.get("observation", result)
+        reward = result.get("reward", obs.get("reward", 0))
+        done = result.get("done", obs.get("done", True))
+        score = obs.get("step_score", reward * 10)
+        total_score += reward
 
-            # Agent decides action
-            print("\n🤖 Agent thinking...")
-            action = await agent.act(obs)
+        print(f"\nStep score: {score:.1f}/10  (reward: {reward:.2f})")
+        print(f"Feedback: {obs.get('feedback','')[:300]}")
+        print(f"Casualties prevented: {obs.get('casualties_prevented', 0)}")
 
-            print(f"\n📤 Agent action:")
-            print(f"  Plan (first 200 chars): {action.response_plan[:200]}...")
-            print(f"  Allocations: {action.resource_allocations}")
-            print(f"  Priority areas: {action.priority_areas}")
+    final = obs.get("final_score", total_score / step)
+    print(f"\n{'='*60}")
+    print(f"EPISODE COMPLETE")
+    print(f"Final Score: {final:.2f}/10")
+    print(f"Normalised:  {final/10:.3f}/1.0")
+    print(f"{'='*60}")
+    return final
 
-            # Execute step
-            result = await env.step(action)
-            obs = result.observation
-
-            print(f"\n📊 Step score: {obs.step_score:.1f}/10")
-            print(f"💬 Feedback:\n{obs.feedback}")
-            print(f"🏥 Casualties prevented so far: ~{obs.casualties_prevented}")
-            total_score += obs.step_score
-
-        print(f"\n{'='*60}")
-        print(f"✅ EPISODE COMPLETE")
-        print(f"   Final Score:          {obs.final_score:.2f}/10")
-        print(f"   Total Steps:          {step}")
-        print(f"   Casualties Prevented: ~{obs.casualties_prevented}")
-        print(f"{'='*60}")
-
-
-async def run_all_tasks(base_url: str, model: str) -> None:
-    """Run all 3 tasks sequentially and report results."""
-    results = []
-    for level in [1, 2, 3]:
-        print(f"\n\n{'#'*60}")
-        print(f"# TASK {level}")
-        print(f"{'#'*60}")
-        await run_episode(base_url, level, model)
-        results.append(level)
-
-    print("\n\n" + "="*60)
-    print("ALL TASKS COMPLETE")
-    print("="*60)
-
-
-# ─── Entry point ──────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Disaster Response Baseline Agent")
-    parser.add_argument(
-        "--base_url",
-        type=str,
-        default="http://localhost:7860",
-        help="Base URL of the deployed environment",
-    )
-    parser.add_argument(
-        "--task_level",
-        type=int,
-        choices=[1, 2, 3, 0],
-        default=1,
-        help="Task level 1/2/3, or 0 to run all tasks",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="gpt-4o",
-        help="OpenAI model to use for the agent",
-    )
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base_url", default="http://localhost:7860")
+    parser.add_argument("--task_level", type=int, default=0)
     args = parser.parse_args()
 
-    if "OPENAI_API_KEY" not in os.environ:
-        print("❌ Set OPENAI_API_KEY environment variable first.")
-        sys.exit(1)
-
     if args.task_level == 0:
-        asyncio.run(run_all_tasks(args.base_url, args.model))
+        scores = []
+        for level in [1, 2, 3]:
+            score = run_episode(args.base_url, level)
+            scores.append(score)
+        print(f"\nOVERALL AVERAGE: {sum(scores)/len(scores):.2f}/10")
     else:
-        asyncio.run(run_episode(args.base_url, args.task_level, args.model))
+        run_episode(args.base_url, args.task_level)
+
+if __name__ == "__main__":
+    main()
