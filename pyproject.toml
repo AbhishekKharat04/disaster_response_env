@@ -32,7 +32,7 @@ dev = [
 ]
 
 [project.scripts]
-disaster-env-server = "disaster_response_env.server.app:app"
+server = "disaster_response_env.server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
