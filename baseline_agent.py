@@ -52,7 +52,7 @@ def run_episode(base_url: str, task_level: int):
         print(f"\nAgent deploying: {action['resource_allocations']}")
         print(f"Priority: {action['priority_areas']}")
 
-        r = requests.post(f"{base_url}/step", json={"action": action}, timeout=30)
+        r = requests.post(f"{base_url}/step", json=action, timeout=30)
         result = r.json()
         obs = result.get("observation", result)
         reward = result.get("reward", obs.get("reward", 0))
