@@ -31,7 +31,16 @@ app = create_app(
     DisasterObservation,
     env_name="disaster_response_env",
 )
-
+@app.get("/")
+def root():
+    return {
+        "name": "Disaster Response Coordination Environment",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health",
+        "tasks": "/tasks",
+        "baseline": "/baseline"
+    }
 
 # ─── /tasks endpoint ─────────────────────────────────────────────────────────
 
