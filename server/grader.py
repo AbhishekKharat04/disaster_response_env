@@ -231,7 +231,7 @@ def _core_grade(task, action, step, situation, history) -> Tuple[float, str, int
         else:
             casualties += min(res, 3)
 
-    score = max(0.0, min(10.0, round(score, 2)))
+    score = max(0.5, min(9.5, round(score, 2)))
     return score, "\n".join(lines), casualties
 
 

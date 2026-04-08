@@ -135,8 +135,8 @@ def grade_action(request: GraderRequest):
         history=[],
     )
 
-    # Normalise to 0.0–1.0
-    normalised = round(raw_score / 10.0, 4)
+    # Normalise to strictly within (0, 1) — validator rejects 0.0 and 1.0
+    normalised = max(0.01, min(0.99, round(raw_score / 10.0, 4)))
 
     return JSONResponse({
         "task_level": request.task_level,
@@ -219,9 +219,9 @@ def _run_baseline_for_task(task_level: int) -> Dict[str, Any]:
         step += 1
         action = BASELINE_ACTIONS.get(task_level, BASELINE_ACTIONS[1])
         obs, reward, done, info = env.step(action)
-        scores.append(round(reward, 4))  # already 0.0–1.0
+        scores.append(max(0.01, min(0.99, round(reward, 4))))  # strictly (0, 1)
 
-    final = round(sum(scores) / len(scores), 4)
+    final = max(0.01, min(0.99, round(sum(scores) / len(scores), 4)))
     return {
         "task_level": task_level,
         "task_name": task["name"],

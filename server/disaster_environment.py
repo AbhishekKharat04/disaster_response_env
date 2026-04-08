@@ -73,8 +73,8 @@ class DisasterResponseEnvironment(Environment):
             time_step=0,
             max_steps=self._task["max_steps"],
             done=False,
-            reward=0.0,
-            step_score=0.0,
+            reward=0.5,
+            step_score=0.5,
             cumulative_score=0.0,
             final_score=None,
             feedback=(
@@ -136,8 +136,8 @@ class DisasterResponseEnvironment(Environment):
         max_steps = self._task["max_steps"]
         self._done = self._step >= max_steps
 
-        # Normalised reward for RL training
-        reward = step_score / 10.0
+        # Normalised reward for RL training (strictly within (0, 1))
+        reward = max(0.01, min(0.99, step_score / 10.0))
 
         # Compute final score when episode ends
         final_score: Optional[float] = None

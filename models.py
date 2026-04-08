@@ -68,8 +68,8 @@ class DisasterObservation(Observation):
     time_step: int = Field(0, description="Current step index within the episode.")
     max_steps: int = Field(1, description="Total steps allowed for this task.")
     done: bool = Field(False, description="True when the episode is complete.")
-    reward: float = Field(0.0, description="Step reward normalised to [0, 1].")
-    step_score: float = Field(0.0, description="Raw grader score for this step (0–10).")
+    reward: float = Field(0.5, description="Step reward normalised to (0, 1).")
+    step_score: float = Field(0.5, description="Raw grader score for this step (0–10).")
     cumulative_score: float = Field(
         0.0, description="Sum of step scores so far."
     )
