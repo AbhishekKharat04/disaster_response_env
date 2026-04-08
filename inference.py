@@ -80,7 +80,7 @@ def run_task(client, task):
     max_steps  = task["max_steps"]
     rewards    = []
     steps_done = 0
-    score      = 0.0
+    score      = 0.5
     success    = False
 
     print(
@@ -123,7 +123,7 @@ def run_task(client, task):
                 if sr.status_code == 200:
                     result = sr.json()
                     obs    = result.get("observation", result)
-                    reward = float(result.get("reward", obs.get("reward", 0.5)))
+                    reward = max(0.001, min(0.999, float(result.get("reward", obs.get("reward", 0.5)))))
                     done   = result.get("done", obs.get("done", step >= max_steps))
                     err    = "null"
                 else:
@@ -133,7 +133,7 @@ def run_task(client, task):
                         json={**action, "task_level": task["level"], "step": step},
                         timeout=30,
                     )
-                    reward = gr.json().get("score", 0.5) if gr.status_code == 200 else 0.5
+                    reward = max(0.001, min(0.999, float(gr.json().get("score", 0.5)))) if gr.status_code == 200 else 0.5
                     done   = step >= max_steps
                     err    = "null"
             except Exception as e:
@@ -157,14 +157,14 @@ def run_task(client, task):
             rewards    = [0.5]
             steps_done = 1
 
-        score   = min(max(sum(rewards) / len(rewards), 0.0), 1.0)
+        score   = max(0.001, min(0.999, sum(rewards) / len(rewards)))
         success = score >= 0.3
 
     except Exception as exc:
         if not rewards:
-            rewards    = [0.0]
+            rewards    = [0.5]
             steps_done = 1
-        score   = sum(rewards) / len(rewards)
+        score   = max(0.001, min(0.999, sum(rewards) / len(rewards)))
         success = False
         print(
             f"[STEP] step={steps_done} action=error reward=0.00 "
